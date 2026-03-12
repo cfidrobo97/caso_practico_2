@@ -1,0 +1,16 @@
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+
+# Sensitive vars files
+*.tfvars
+*.tfvars.json
+
+# Ignore binary for the terraform provider
+terraform-provider-*.exe
