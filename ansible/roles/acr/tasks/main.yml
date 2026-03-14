@@ -1,0 +1,19 @@
+---
+- name: Login to ACR
+  containers.podman.podman_login:
+    registry: "{{ acr_login_server }}"
+    username: "{{ acr_username }}"
+    password: "{{ acr_password }}"
+
+- name: Build web image
+  containers.podman.podman_image:
+    name: "{{ acr_login_server }}/{{ web_image }}"
+    tag: "{{ web_tag }}"
+    path: "{{ playbook_dir }}/files/web"
+    build:
+      format: docker
+
+- name: Push web image to ACR
+  containers.podman.podman_image:
+    name: "{{ acr_login_server }}/{{ web_image }}:{{ web_tag }}"
+    push: true
