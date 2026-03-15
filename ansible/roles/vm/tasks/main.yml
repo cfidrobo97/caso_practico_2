@@ -8,6 +8,64 @@
     name: podman
     state: present
 
+- name: Install python3-pip
+  apt:
+    name: python3-pip
+    state: present
+
+- name: Install python3-passlib
+  apt:
+    name: python3-passlib
+    state: present
+    
+- name: Create SSL directory
+  file:
+    path: /opt/nginx/ssl
+    state: directory
+    mode: "0755"
+
+- name: Create nginx config directory
+  file:
+    path: /opt/nginx/config
+    state: directory
+    mode: "0755"
+
+- name: Generate private key for nginx certificate
+  community.crypto.openssl_privatekey:
+    path: /opt/nginx/ssl/server.key
+    size: 2048
+    type: RSA
+    mode: "0600"
+
+- name: Generate CSR for nginx certificate
+  community.crypto.openssl_csr:
+    path: /opt/nginx/ssl/server.csr
+    privatekey_path: /opt/nginx/ssl/server.key
+    common_name: "{{ inventory_hostname }}"
+    country_name: "EC"
+    state_or_province_name: "Imbabura"
+    locality_name: "Atuntaqui"
+    organization_name: "UNIR"
+    organizational_unit_name: "DevOps"
+    mode: "0644"
+
+- name: Generate self-signed certificate for nginx
+  community.crypto.x509_certificate:
+    path: /opt/nginx/ssl/server.crt
+    csr_path: /opt/nginx/ssl/server.csr
+    privatekey_path: /opt/nginx/ssl/server.key
+    provider: selfsigned
+    selfsigned_not_after: "+365d"
+    mode: "0644"
+
+- name: Generate htpasswd file
+  community.general.htpasswd:
+    path: /opt/nginx/config/.htpasswd
+    name: "{{ nginx_basic_auth_user }}"
+    password: "{{ nginx_basic_auth_password }}"
+    crypt_scheme: bcrypt
+    mode: "0644"
+
 - name: Login to ACR from VM
   containers.podman.podman_login:
     registry: "{{ acr_login_server }}"
@@ -27,3 +85,7 @@
     ports:
       - "80:80"
       - "443:443"
+    volume:
+      - /opt/nginx/ssl/server.crt:/etc/nginx/ssl/server.crt:Z
+      - /opt/nginx/ssl/server.key:/etc/nginx/ssl/server.key:Z
+      - /opt/nginx/config/.htpasswd:/etc/nginx/.htpasswd:Z
