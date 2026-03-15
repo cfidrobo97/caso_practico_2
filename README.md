@@ -6,48 +6,29 @@ Antes de ejecutar el proyecto asegúrese de tener instalado:
 
 - Terraform
 - Ansible
-- OpenSSL
+- Acceso a una suscripción de Microsoft Azure
 - Acceso SSH a las máquinas objetivo
 
-## Configuración de llaves SSH
-Para permitir que **Ansible** se conecte a los servidores, debe generar un par de llaves SSH y colocar la llave privada en la carpeta:
+## Configuración inicial
+Antes de ejecutar el despliegue es necesario configurar dos archivos:
 
+### 1. Variables de Terraform
+
+Editar el archivo:
 ```
-ansible/
+terraform/terraform.tfvars
 ```
+### 2. Credenciales de aplicación
 
-con el nombre:
-
+Editar el archivo:
 ```
-private_key.pem
+ansible/secrets.yml
 ```
+# Ejecución del proyecto
 
-Luego asigne los permisos correctos:
+## 1. Desplegar infraestructura con Terraform
 
-```bash
-chmod 400 ansible/private_key.pem
-```
-
----
-## Generación del certificado SSL
-Ejecute el siguiente comando para generar un certificado autofirmado que será utilizado por el servidor:
-
-```bash
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
--keyout server.key \
--out server.crt \
--subj "/C=EC/ST=Imbabura/L=Atuntaqui/O=UNIR/OU=DevOps/CN=localhost"
-```
-
-Esto generará:
-
-- `server.key` → llave privada
-- `server.crt` → certificado SSL
-
-
-## Ejecución del proyecto
-
-### 1. Desplegar infraestructura con Terraform
+Desde la carpeta `terraform` ejecutar:
 
 ```bash
 terraform init
@@ -55,8 +36,64 @@ terraform plan
 terraform apply
 ```
 
-### 2. Configurar servidores con Ansible
+Esto creará automáticamente:
+
+- Resource Group
+- Red virtual
+- Subred
+- Security Group
+- IP pública
+- Máquina virtual Linux
+- Azure Container Registry
+
+---
+
+## 2. Generar la clave SSH para Ansible
+
+Una vez finalizado el despliegue, generar la clave privada SSH utilizada por Ansible ejecutando:
 
 ```bash
-ansible-playbook -i inventory playbook.yml
+terraform output -raw ssh_private_key > ../ansible/private_key.pem
+chmod 600 ../ansible/private_key.pem
 ```
+
+Esto guardará la clave privada dentro de la carpeta `ansible/`.
+
+---
+
+## 3. Obtener la IP pública de la máquina virtual
+
+Ejecutar:
+
+```bash
+terraform output -raw vm_public_ip
+```
+
+Copiar la IP obtenida y actualizar el archivo:
+
+```
+ansible/hosts
+```
+
+reemplazando la IP pública de la máquina virtual.
+
+---
+
+## 4. Configurar el servidor con Ansible
+
+Desde la carpeta `ansible` ejecutar:
+
+```bash
+ansible-playbook -i hosts playbook.yml
+```
+
+# Reproducibilidad del sistema
+
+Para reproducir completamente el despliegue en otra máquina únicamente es necesario:
+
+- Configurar las variables en `terraform/terraform.tfvars`
+- Configurar las credenciales en `ansible/secrets.yml`
+- Ejecutar Terraform
+- Generar la clave SSH
+- Actualizar la IP pública en `ansible/hosts`
+- Ejecutar el playbook de Ansible
