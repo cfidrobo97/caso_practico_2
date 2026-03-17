@@ -1,6 +1,5 @@
 # Caso Práctico 2
 
-# Parte 1
 Este repositorio contiene la infraestructura y configuración necesarias para desplegar el entorno utilizando Terraform y Ansible.
 ---
 ## Requisitos
@@ -43,6 +42,9 @@ Esto creará automáticamente:
 - IP pública
 - Máquina virtual Linux
 - Azure Container Registry
+- AKS
+- Azure Vote Front
+- Redis
 
 Además, Terraform generará automáticamente los archivos necesarios para Ansible:
 
