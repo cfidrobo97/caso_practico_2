@@ -5,6 +5,7 @@
     username: "{{ acr_username }}"
     password: "{{ acr_password }}"
 
+# Imagen del bloque 1
 - name: Build web image
   containers.podman.podman_image:
     name: "{{ acr_login_server }}/{{ web_image }}"
@@ -16,4 +17,36 @@
 - name: Push web image to ACR
   containers.podman.podman_image:
     name: "{{ acr_login_server }}/{{ web_image }}:{{ web_tag }}"
+    push: true
+
+# Redis para AKS
+- name: Pull Redis image from Docker Hub
+  containers.podman.podman_image:
+    name: "{{ redis_image_src }}"
+
+- name: Tag Redis image for ACR
+  containers.podman.podman_tag:
+    image: "{{ redis_image_src }}"
+    target_names:
+      - "{{ acr_login_server }}/{{ redis_image_dst }}:{{ redis_tag }}"
+
+- name: Push Redis image to ACR
+  containers.podman.podman_image:
+    name: "{{ acr_login_server }}/{{ redis_image_dst }}:{{ redis_tag }}"
+    push: true
+
+# Azure Vote Front para AKS
+- name: Pull Azure Vote Front image from Docker Hub
+  containers.podman.podman_image:
+    name: "{{ vote_front_image_src }}"
+
+- name: Tag Azure Vote Front image for ACR
+  containers.podman.podman_tag:
+    image: "{{ vote_front_image_src }}"
+    target_names:
+      - "{{ acr_login_server }}/{{ vote_front_image_dst }}:{{ vote_front_tag }}"
+
+- name: Push Azure Vote Front image to ACR
+  containers.podman.podman_image:
+    name: "{{ acr_login_server }}/{{ vote_front_image_dst }}:{{ vote_front_tag }}"
     push: true

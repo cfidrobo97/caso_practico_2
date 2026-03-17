@@ -1,0 +1,154 @@
+---
+- name: Create namespace
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ aks_namespace }}"
+
+- name: Build docker config json for ACR
+  set_fact:
+    dockerconfigjson: >-
+      {{
+        {
+          "auths": {
+            (acr_login_server): {
+              "username": acr_username,
+              "password": acr_password,
+              "auth": ((acr_username ~ ":" ~ acr_password) | b64encode)
+            }
+          }
+        } | to_json
+      }}
+
+- name: Create docker-registry secret for ACR
+  kubernetes.core.k8s:
+    state: present
+    namespace: "{{ aks_namespace }}"
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: acr-secret
+      type: kubernetes.io/dockerconfigjson
+      stringData:
+        .dockerconfigjson: "{{ dockerconfigjson }}"
+
+- name: Create Redis PVC
+  kubernetes.core.k8s:
+    state: present
+    namespace: "{{ aks_namespace }}"
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: "{{ redis_pvc_name }}"
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: "{{ redis_storage_size }}"
+
+- name: Deploy Redis backend
+  kubernetes.core.k8s:
+    state: present
+    namespace: "{{ aks_namespace }}"
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: backend
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: backend
+        template:
+          metadata:
+            labels:
+              app: backend
+          spec:
+            imagePullSecrets:
+              - name: acr-secret
+            containers:
+              - name: redis
+                image: "{{ acr_login_server }}/{{ redis_image_dst }}:{{ redis_tag }}"
+                ports:
+                  - containerPort: 6379
+                    name: redis
+                env:
+                  - name: ALLOW_EMPTY_PASSWORD
+                    value: "yes"
+                volumeMounts:
+                  - name: redis-storage
+                    mountPath: /data
+            volumes:
+              - name: redis-storage
+                persistentVolumeClaim:
+                  claimName: "{{ redis_pvc_name }}"
+
+- name: Create backend service
+  kubernetes.core.k8s:
+    state: present
+    namespace: "{{ aks_namespace }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: backend
+      spec:
+        selector:
+          app: backend
+        ports:
+          - port: 6379
+            targetPort: 6379
+
+- name: Deploy Azure Vote frontend
+  kubernetes.core.k8s:
+    state: present
+    namespace: "{{ aks_namespace }}"
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: frontend
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: frontend
+        template:
+          metadata:
+            labels:
+              app: frontend
+          spec:
+            imagePullSecrets:
+              - name: acr-secret
+            containers:
+              - name: frontend
+                image: "{{ acr_login_server }}/{{ vote_front_image_dst }}:{{ vote_front_tag }}"
+                ports:
+                  - containerPort: 80
+                env:
+                  - name: REDIS
+                    value: "backend"
+
+- name: Create frontend LoadBalancer service
+  kubernetes.core.k8s:
+    state: present
+    namespace: "{{ aks_namespace }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: frontend
+      spec:
+        type: LoadBalancer
+        selector:
+          app: frontend
+        ports:
+          - port: 80
+            targetPort: 80
